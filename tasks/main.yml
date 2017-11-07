@@ -1,0 +1,70 @@
+---
+# tasks file for letsencrypt-certificates
+
+- name: Install latest pyOpenSSL and acme-tiny via pip (https://github.com/ansible/ansible/issues/30513)
+  become: True
+  pip:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - pyOpenSSL
+    - acme-tiny
+  when: ansible_os_family == "RedHat"
+
+- name: Install pyOpenSSL and acme-tiny packages
+  become: True
+  openbsd_pkg:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - py-openssl
+    - acme-tiny
+  when: ansible_os_family == "OpenBSD"
+
+- name: Verify that an existing certificate was issued by the Let's Encrypt CA and is still valid
+  openssl_certificate:
+    path: "{{ le_certs_dir }}/{{ item.common_name }}.crt"
+    provider: assertonly
+    issuer:
+      O: Let's Encrypt
+    valid_in: "{{ item.valid_in | default(le_default_valid_in) }}"
+  ignore_errors: yes
+  register: check_certificate
+  with_items: "{{ le_certs }}"
+  loop_control:
+    label: "{{ item.common_name }}"
+  tags:
+    - checkonly
+    - openssl
+
+- name: Debug check_certificate variable..
+  debug:
+    var: check_certificate
+    verbosity: 1
+  tags:
+    - checkonly
+    - openssl
+
+- name: Prepare the list of certificates that need to be (re-)generated
+  set_fact:
+    le_certs_to_obtain:
+      - "{{ item.item }}"
+  with_items: "{{ check_certificate.results }}"
+  loop_control:
+    label: "{{ item.item.common_name }}"
+  when: item.failed
+  tags:
+    - checkonly
+    - openssl
+
+- name: Debug le_certs_to_obtain variable..
+  debug:
+    var: le_certs_to_obtain
+    verbosity: 1
+  tags:
+    - checkonly
+    - openssl
+
+- include_tasks: gen_cert.yml
+  when: le_certs_to_obtain is defined
+
