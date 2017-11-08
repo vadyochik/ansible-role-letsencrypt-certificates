@@ -47,8 +47,7 @@
 
 - name: Prepare the list of certificates that need to be (re-)generated
   set_fact:
-    le_certs_to_obtain:
-      - "{{ item.item }}"
+    le_certs_to_obtain: "{{ le_certs_to_obtain|default([]) + [item.item] }}"
   with_items: "{{ check_certificate.results }}"
   loop_control:
     label: "{{ item.item.common_name }}"
