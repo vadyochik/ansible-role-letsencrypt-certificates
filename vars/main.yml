@@ -1,2 +1,4 @@
 ---
 # vars file for letsencrypt-certificates
+le_ca_cert_url: "https://letsencrypt.org/certs/lets-encrypt-x3-cross-signed.pem.txt"
+le_ca_cert_checksum: "sha256:e446c5e9dbef9d09ac9f7027c034602492437a05ff6c40011d7235fca639c79a"
