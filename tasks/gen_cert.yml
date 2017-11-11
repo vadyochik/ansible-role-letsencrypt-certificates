@@ -123,18 +123,6 @@
   tags:
     - openssl
 
-- name: Verify just created LetsEncrypt signed TLS certificates
-  openssl_certificate:
-    path: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem"
-    provider: assertonly
-    issuer:
-      O: Let's Encrypt
-    valid_in: "{{ item.valid_in | default(le_default_valid_in) }}"
-  with_items: "{{ le_certs_to_obtain }}"
-  loop_control:
-    label: "{{ item.common_name }}"
-  when: item.common_name is defined
-
 - name: Kill temporary python SimpleHTTPServer web server
   command: "pkill -f '^python .* {{ le_web_server_port | quote }}$'"
   when: le_run_python_simplehttpserver
@@ -152,3 +140,15 @@
   when: ansible_system == "Linux"
   tags:
     - iptables
+
+- name: Verify just created LetsEncrypt signed TLS certificates
+  openssl_certificate:
+    path: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem"
+    provider: assertonly
+    issuer:
+      O: Let's Encrypt
+    valid_in: "{{ item.valid_in | default(le_default_valid_in) }}"
+  with_items: "{{ le_certs_to_obtain }}"
+  loop_control:
+    label: "{{ item.common_name }}"
+  when: item.common_name is defined
