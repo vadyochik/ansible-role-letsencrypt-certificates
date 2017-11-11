@@ -1,14 +1,21 @@
 ---
-
-- name: Ensure directories exist for local TLS certs and Let's Encrypt challenges.
+- name: Ensure directory for Let's Encrypt challenges exists.
   file:
-    path: "{{ item }}"
+    path: "{{ le_certs_dir }}/webroot/.well-known/acme-challenge"
     state: directory
     mode: 0700
-  with_items:
-    - "{{ le_certs_dir }}"
-    - "{{ le_certs_dir }}/live"
-    - "{{ le_certs_dir }}/webroot/.well-known/acme-challenge"
+
+- name: Ensure directories for domains TLS certs exist.
+  file:
+    path: "{{ le_certs_dir }}/{{ item.common_name }}"
+    state: directory
+    mode: 0755
+  with_items: "{{ le_certs_to_obtain }}"
+  loop_control:
+    label: "{{ item.common_name }}"
+  when: item.common_name is defined
+  tags:
+    - openssl
 
 - name: Generate an OpenSSL private key for Let's Encrypt account.
   openssl_privatekey:
@@ -16,9 +23,9 @@
   tags:
     - openssl
 
-- name: Generate an OpenSSL private key for the domain.
+- name: Generate an OpenSSL private keys for the domains.
   openssl_privatekey:
-    path: "{{ le_certs_dir }}/{{ item.common_name }}.key"
+    path: "{{ le_certs_dir }}/{{ item.common_name }}/privkey.pem"
   with_items: "{{ le_certs_to_obtain }}"
   loop_control:
     label: "{{ item.common_name }}"
@@ -28,8 +35,8 @@
 
 - name: Generate an OpenSSL Certificate Signing Request
   openssl_csr:
-    path: "{{ le_certs_dir }}/{{ item.common_name }}.csr"
-    privatekey_path: "{{ le_certs_dir }}/{{ item.common_name }}.key"
+    path: "{{ le_certs_dir }}/{{ item.common_name }}/csr.pem"
+    privatekey_path: "{{ le_certs_dir }}/{{ item.common_name }}/privkey.pem"
     common_name: "{{ item.common_name }}"
     subject_alt_name: "{{ item.subject_alt_name|default(omit) }}"
   with_items: "{{ le_certs_to_obtain }}"
@@ -39,10 +46,21 @@
   tags:
     - openssl
 
+- name: Download Let's Encrypt's intermediate CA cert 
+  get_url:
+    url: "{{ le_ca_cert_url }}"
+    dest: "{{ le_certs_dir }}/{{ item.common_name }}/chain.pem"
+    checksum: "{{ le_ca_cert_checksum }}"
+  with_items: "{{ le_certs_to_obtain }}"
+  loop_control:
+    label: "{{ item.common_name }}"
+  tags:
+    - openssl
+
 - name: Backup existing certificates
   copy:
-    src: "{{ le_certs_dir }}/{{ item.common_name }}.crt"
-    dest: "{{ le_certs_dir }}/{{ item.common_name }}.crt.old"
+    src: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem"
+    dest: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem.old"
     remote_src: yes
     backup: True
   with_items: "{{ le_certs_to_obtain }}"
@@ -55,7 +73,7 @@
 
 - name: Remove existing certificates
   file:
-    path: "{{ le_certs_dir }}/{{ item.common_name }}.crt"
+    path: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem"
     state: absent
   with_items: "{{ le_certs_to_obtain }}"
   loop_control:
@@ -92,13 +110,12 @@
 
 - name: Generate new Let's Encrypt Certificates
   openssl_certificate:
-    path: "{{ le_certs_dir }}/{{ item.common_name }}.crt"
-    csr_path: "{{ le_certs_dir }}/{{ item.common_name }}.csr"
-    privatekey_path: "{{ le_certs_dir }}/{{ item.common_name }}.key"
+    path: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem"
+    csr_path: "{{ le_certs_dir }}/{{ item.common_name }}/csr.pem"
+    privatekey_path: "{{ le_certs_dir }}/{{ item.common_name }}/privkey.pem"
     provider: acme
     acme_accountkey_path: "{{ le_certs_dir }}/acme_account.key"
     acme_challenge_path: "{{ le_certs_dir }}/webroot/.well-known/acme-challenge/"
-    #force: True
   with_items: "{{ le_certs_to_obtain }}"
   loop_control:
     label: "{{ item.common_name }}"
@@ -123,15 +140,3 @@
   when: ansible_system == "Linux"
   tags:
     - iptables
-
-- name: "Assemble key and cert into a single PEM file"
-  assemble:
-    src:  "{{ le_certs_dir }}"
-    dest: "{{ le_certs_dir }}/live/{{ item.common_name }}.pem"
-    regexp: "{{ item.common_name }}.key|{{ item.common_name }}.crt"
-    mode: 0600
-  with_items: "{{ le_certs }}"
-  loop_control:
-    label: "{{ item.common_name }}"
-  when: item.common_name is defined
-

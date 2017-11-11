@@ -23,7 +23,7 @@
 
 - name: Verify that an existing certificate was issued by the Let's Encrypt CA and is still valid
   openssl_certificate:
-    path: "{{ le_certs_dir }}/{{ item.common_name }}.crt"
+    path: "{{ le_certs_dir }}/{{ item.common_name }}/cert.pem"
     provider: assertonly
     issuer:
       O: Let's Encrypt
@@ -66,4 +66,7 @@
 
 - include_tasks: gen_cert.yml
   when: le_certs_to_obtain is defined
+
+- include_tasks: assemble.yml
+  when: le_concatenate_files
 
