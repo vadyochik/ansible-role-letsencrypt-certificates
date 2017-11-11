@@ -5,3 +5,4 @@ le_certs_dir: "{{ ansible_user_dir }}/letsencrypt"
 le_run_python_simplehttpserver: False
 le_web_server_port: "60080"
 le_default_valid_in: 1209600
+le_concatenate_files: True
