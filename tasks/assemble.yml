@@ -1,0 +1,23 @@
+---
+- name: "Concatenate domain cert with LE intermediate CA cert to produce fullchain.pem"
+  assemble:
+    src:  "{{ le_certs_dir }}/{{ item.common_name }}"
+    dest: "{{ le_certs_dir }}/{{ item.common_name }}/fullchain.pem"
+    regexp: "^cert.pem$|^chain.pem$"
+    mode: 0644
+  with_items: "{{ le_certs }}"
+  loop_control:
+    label: "{{ item.common_name }}"
+  when: item.common_name is defined
+
+- name: "Concatenate fullchain.pem cert with private key to produce combined PEM file"
+  assemble:
+    src:  "{{ le_certs_dir }}/{{ item.common_name }}"
+    dest: "{{ le_certs_dir }}/{{ item.common_name }}/combined.pem"
+    regexp: "^fullchain.pem$|^privkey.pem$"
+    mode: 0600
+  with_items: "{{ le_certs }}"
+  loop_control:
+    label: "{{ item.common_name }}"
+  when: item.common_name is defined
+
